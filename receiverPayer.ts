@@ -4,8 +4,8 @@ import {
   PublicKey,
   Transaction,
   TransactionInstruction,
-  sendAndConfirmTransaction,
   Keypair,
+  sendAndConfirmTransaction,
 } from '@solana/web3.js';
 
 import {
@@ -51,16 +51,16 @@ async function main() {
     recipient.publicKey
   );
 
-    // Mint 1 new token to the "senderTokenAccount" account we just created
-    let signatureMinting = await mintTo(
-        connection,
-        sender,
-        tokenMintAddress,
-        senderTokenAccount.address,
-        sender.publicKey,
-        1000000000
-    );
-    console.log('mint tx:', signatureMinting);
+  // Mint 1 new token to the "senderTokenAccount" account we just created
+  let signatureMinting = await mintTo(
+      connection,
+      sender,
+      tokenMintAddress,
+      senderTokenAccount.address,
+      sender.publicKey,
+      1000000000
+  );
+  console.log('mint tx:', signatureMinting);
 
   // Создаем инструкцию перевода токенов
   const transferInstruction = createTransferInstruction(
@@ -68,22 +68,26 @@ async function main() {
     recipientTokenAccount.address, // Адрес получателя токенов
     sender.publicKey, // Отправитель
     1000000, // Количество токенов для перевода (например, 1 токен = 1000000 micro-tokens)
-    [sender,
-	 recipient
-	], // Необходимые подписи
+    [], // Необходимые подписи (будут добавлены позже)
     TOKEN_PROGRAM_ID
   );
 
   // Создаем транзакцию
   let transaction = new Transaction().add(transferInstruction);
 
-  // Получатель оплачивает комиссию
+  // Подписываем транзакцию отправителем
+  transaction.partialSign(sender);
+
+  // Серилизуем сообщение
+  const serializedTransaction = transaction.serializeMessage();
+
+  // Подписываем транзакцию получателем, который также оплатит комиссию
+  transaction.addSignature(recipient.publicKey, recipient.sign(serializedTransaction).signature);
+
   const signature = await sendAndConfirmTransaction(
     connection,
     transaction,
-    [sender,
-	 recipient,
-	], // Подпись отправителя (получателя токенов)
+    [recipient], // Получатель подписывает и оплачивает комиссию
     {
       skipPreflight: false,
       preflightCommitment: 'confirmed',
